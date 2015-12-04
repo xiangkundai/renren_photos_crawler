@@ -25,7 +25,7 @@ def get_url(config):
         person_dict[rid] = url_prefix + rid.strip() + '/albumlist/v7'
 
     return person_dict
-            
+
 # 组装HTTP请求头
 def get_headers(config):
     headers = {
@@ -44,7 +44,7 @@ def get_headers(config):
 
     # 从配置文件中取得用户cookie
     headers['Cookie'] = config.get('cookie', 'cookie')
-    
+
     return headers
 
 # 发送HTTP请求
@@ -57,23 +57,24 @@ def get_albums(response):
     parsed_body = html.fromstring(response.text)
     js = parsed_body.xpath('//script/text()')
     js = map(lambda x : x.encode('utf-8'), js)
-    
+
     # 相册代码所在的js段
     album_js = js[3]
     album_raw = re.findall(r"'albumList':\s*(\[.*?\]),", album_js)[0]
     album_list = eval(album_raw)
-    
-    album_url_dict = {}
-    for album in album_list: 
-        if album['sourceControl'] == 99:  # 有权访问该相册（只能爬取有权访问的相册）
-            album_url = 'http://photo.renren.com/photo/'
-            album_url = album_url + str(album['ownerId']) + '/'
-            album_url = album_url + 'album-' + album['albumId'] + '/v7'
 
-            album_url_dict[album['albumId']] = {}
-            album_url_dict[album['albumId']]['album_url'] = album_url
-            album_url_dict[album['albumId']]['photo_count'] = album['photoCount']
-            album_url_dict[album['albumId']]['album_name'] = album['albumName']
+    album_url_dict = {}
+    for album in album_list:
+        # if album['sourceControl'] == 0:#99:  # 有权访问该相册（只能爬取有权访问的相册）
+        # if album['sourceControl'] != 99:
+        album_url = 'http://photo.renren.com/photo/'
+        album_url = album_url + str(album['ownerId']) + '/'
+        album_url = album_url + 'album-' + album['albumId'] + '/v7'
+
+        album_url_dict[album['albumId']] = {}
+        album_url_dict[album['albumId']]['album_url'] = album_url
+        album_url_dict[album['albumId']]['photo_count'] = album['photoCount']
+        album_url_dict[album['albumId']]['album_name'] = album['albumName']
 
     return album_url_dict
 
@@ -94,8 +95,11 @@ def get_imgs(album_url_dict, headers):
 
 def download_img(img_dict, album_url_dict, start_dir):
     for album_id, image_list in img_dict.iteritems():
-        cur_dir = start_dir + album_url_dict[album_id]['album_name'].replace(' ', '_')
-        
+        album_name = album_url_dict[album_id]['album_name'].replace(' ', '_')
+        # album_name = unicode(album_name, 'utf-8')
+
+        cur_dir = start_dir + album_name#.decode('unicode-escape')
+        print cur_dir
         if not os.path.exists(cur_dir):
             os.makedirs(cur_dir)
 
@@ -103,19 +107,21 @@ def download_img(img_dict, album_url_dict, start_dir):
         for url in image_list:
             print url + "  start!"
             response = requests.get(url)
-            with open(cur_dir + '/' + url.split('/')[-1], 'wb') as f:
+            elements = url.split('/')
+            final_img_name = elements[-3] + '_' + elements[-2] + '_' + elements[-1]
+            with open(cur_dir + '/' + final_img_name, 'wb') as f:
                 f.write(response.content)
-                
+
             print url + "  done!"
 
-    
+
 # 主函数
 def main():
     config = get_config()
     headers = get_headers(config)
     # 相册首地址
     url_dict = get_url(config)
-    
+
     for rid, url in url_dict.iteritems():
         name = config.get('person', rid)
         print 'start downloading' + ' ' + name + '\'s albums!'
@@ -128,7 +134,7 @@ def main():
         download_img(img_dict, album_url_dict, start_dir)
         print '----------------------------------------'
         print 'end downloading!'
-        print 
+        print
 
 # 程序入口
 if __name__ == '__main__':
